@@ -1,6 +1,7 @@
 import networkx as nx
 import numpy as np
 import scipy.sparse.linalg
+import matplotlib
 import scipy.io
 import mat73
 import math
@@ -15,13 +16,8 @@ class CentralityAttributes:
     AdjacencyMatrix: scipy.sparse._csc.csc_matrix
     Graph: nx.classes.graph.Graph
     
-def SpectralRadius(A) -> float:
-    W, V  = scipy.sparse.linalg.eigs(A) # get largest eigenvalue of adj matrix
-    #eigens = sorted(abs(W), reverse=True)
-    eigen = max(abs(W))
-    lambd = float(eigen)
-    
-    return lambd
+def Reshape(vector: np.ndarray) -> np.ndarray:
+    return np.reshape(vector, vector.shape[0])
 
 def KatzGrid(spectral_rad: float,
              grid_points: int=9) -> np.ndarray:
@@ -36,6 +32,16 @@ def TGrid(grid_points: int=9) -> np.ndarray:
     ts = ts[1:len(ts)-1]
     
     return ts
+
+def SpectralRadius(A) -> float:
+    #W, V  = scipy.sparse.linalg.eigs(A.toarray()) # get largest eigenvalue of adj matrix
+    #W, V  = np.linalg.eig(A) # get largest eigenvalue of adj matrix
+    W, V  = scipy.sparse.linalg.eigs(A) # get largest eigenvalue of adj matrix
+    #eigens = sorted(abs(W), reverse=True)
+    eigen = max(abs(W))
+    lambd = float(eigen)
+    
+    return lambd
 
 def DeformedGraphLaplacian(A,
                            I: np.ndarray,
@@ -71,7 +77,7 @@ def KatzCentralityV2(A, Graph: nx.classes.graph.Graph) -> tuple((np.ndarray, np.
 
     for i, alpha in enumerate(alphas):
         centr                   = np.linalg.inv(I - alpha*A) * e
-        katz_centralities[:, i] = np.reshape(centr, centr.shape[0])
+        katz_centralities[:, i] = Reshape(centr)
     
     return (katz_centralities, alphas)
 
@@ -87,13 +93,13 @@ def NBTCentrality(A) -> tuple((np.ndarray, np.ndarray)):
     
     d                          = np.sum(A, axis=1)
     D                          = np.eye(N)
-    D[np.diag_indices_from(D)] = np.reshape(d, d.shape[0])
+    D[np.diag_indices_from(D)] = Reshape(d)
 
     for i, t in enumerate(ts):
         Mt                      = DeformedGraphLaplacian(A, I, D, t)
         
         centr_nbt               = np.linalg.inv(Mt) * e * (1 - t**2)
-        nbtw_centralities[:, i] = np.reshape(centr_nbt, centr_nbt.shape[0])
+        nbtw_centralities[:, i] = Reshape(centr_nbt)
         
     return (nbtw_centralities, ts)
 
@@ -106,6 +112,17 @@ def GenerateGroups(range_to_group: np.ndarray) -> tuple((list, np.ndarray)):
     boolmap      = list(map(lambda x: x > intervals, range_to_group))
     group_labels = list(map(lambda x: np.where((x > intervals) == False)[0][0],  range_to_group))
     
+    intr_labels  = ["Category boundaries:" + 
+                    str(i) + 
+                    " - {" + 
+                    str((intervals[i-1])) + 
+                    " " + 
+                    str((intervals[i]))
+                    + "}" 
+                    for i in range(1, len(intervals))]
+    
+    #print(intr_labels)
+    
     return (group_labels, intervals)
 
 def GenerateAttributes(groups_lbl: list) -> dict: 
@@ -116,7 +133,12 @@ def GenerateAttributes(groups_lbl: list) -> dict:
     return group_attr
 
 def CentralityColorMap(Graph: nx.classes.graph.Graph,
-                       intervals: list) -> None:
+                       intervals: list,
+                       pos,
+                       xsz: int,
+                       ysz: int,
+                       filename="") -> None:
+    
     # get unique groups
     groups  = set(nx.get_node_attributes(Graph,'color_group').values())
     mapping = dict(zip(sorted(groups), count()))
@@ -124,8 +146,7 @@ def CentralityColorMap(Graph: nx.classes.graph.Graph,
     colors  = [mapping[Graph.nodes[n]['color_group']] for n in nodes]
 
     # drawing nodes and edges separately so we can capture collection for colobar
-    fig = plt.figure(figsize=(15,15))
-    pos = nx.spring_layout(Graph)
+    fig = plt.figure(figsize=(ysz,xsz))
     ec  = nx.draw_networkx_edges(Graph,
                                  pos,
                                  alpha=0.2)
@@ -135,13 +156,16 @@ def CentralityColorMap(Graph: nx.classes.graph.Graph,
                                  node_color=colors, 
                                  node_size=15,
                                  cmap=plt.cm.jet)
-    lb  = nx.draw_networkx_labels(Graph,
-                                  pos,
-                                  font_size=9,
-                                  font_color='k')
+    # lb  = nx.draw_networkx_labels(Graph,
+    #                               pos,
+    #                               font_size=9,
+    #                               font_color='k')
     
-    plt.colorbar(nc)
+    cbar = plt.colorbar(nc, ticks=range(0,len(intervals)))
+    cbar.ax.set_yticklabels(list(map(str, list(map(lambda x: round(x, 3), intervals)))))  # vertically oriented colorbar
     plt.axis('off')
+    if filename != "":
+        plt.savefig(filename, format="jpg", bbox_inches="tight")
     plt.show()
 
 def VisualizeNodeCentrality(centrality_vector: np.ndarray,
@@ -149,21 +173,36 @@ def VisualizeNodeCentrality(centrality_vector: np.ndarray,
                             title: str,
                             xlab: str,
                             ylab: str,
-                            xsz: int=10,
-                            ysz: int=10) -> None:
+                            xsz: int=5,
+                            ysz: int=5,
+                            step: int=1,
+                            filename: str="") -> None:
+    legend_list = []
     
     fig = plt.figure(figsize=(ysz, xsz))
     plt.title(title)
     plt.xlabel(xlab)
     plt.ylabel(ylab)
-    for i in range(centrality_vector.shape[0]):
-        plt.plot(grid, centrality_vector[i, :], linewidth=0.3)
-    plt.grid()    
+    
+    for i in range(0, centrality_vector.shape[0], step):
+        lines = plt.plot(grid, centrality_vector[i, :], linewidth=0.5)
+        legend_list.append('Node ' + str(i))
+        
+    matplotlib.rcParams['legend.fontsize'] = 9
+    fig.legend(legend_list,loc=5)
+    plt.grid()
+    
+    if filename != "":
+        plt.savefig(filename, format="jpg", bbox_inches="tight")
+        
     plt.show()
     
 def DisplayCentralitiesInGraph(centrality_matrix: np.ndarray,
-                               Graph: nx.classes.graph.Graph) -> None:
+                               Graph: nx.classes.graph.Graph,
+                               xsz: int=15,
+                               ysz: int=15) -> None:
     
+    pos = nx.spring_layout(Graph)
     for i in range(centrality_matrix.shape[1]):
         centrality_vector = centrality_matrix[:, i]
         
@@ -171,5 +210,4 @@ def DisplayCentralitiesInGraph(centrality_matrix: np.ndarray,
         test_attribute    = GenerateAttributes(glbl)
         
         nx.set_node_attributes(Graph, test_attribute)
-        CentralityColorMap(Graph, ints)
-        print(ints)
+        CentralityColorMap(Graph, ints, pos, xsz, ysz)
