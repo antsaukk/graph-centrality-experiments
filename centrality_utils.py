@@ -34,10 +34,7 @@ def TGrid(grid_points: int=9) -> np.ndarray:
     return ts
 
 def SpectralRadius(A) -> float:
-    #W, V  = scipy.sparse.linalg.eigs(A.toarray()) # get largest eigenvalue of adj matrix
-    #W, V  = np.linalg.eig(A) # get largest eigenvalue of adj matrix
-    W, V  = scipy.sparse.linalg.eigs(A) # get largest eigenvalue of adj matrix
-    #eigens = sorted(abs(W), reverse=True)
+    W, V  = scipy.sparse.linalg.eigs(A)
     eigen = max(abs(W))
     lambd = float(eigen)
     
@@ -112,16 +109,15 @@ def GenerateGroups(range_to_group: np.ndarray) -> tuple((list, np.ndarray)):
     boolmap      = list(map(lambda x: x > intervals, range_to_group))
     group_labels = list(map(lambda x: np.where((x > intervals) == False)[0][0],  range_to_group))
     
-    intr_labels  = ["Category boundaries:" + 
-                    str(i) + 
-                    " - {" + 
-                    str((intervals[i-1])) + 
-                    " " + 
-                    str((intervals[i]))
-                    + "}" 
-                    for i in range(1, len(intervals))]
-    
-    #print(intr_labels)
+    # intr_labels  = ["Category boundaries:" + 
+    #                 str(i) + 
+    #                 " - {" + 
+    #                 str((intervals[i-1])) + 
+    #                 " " + 
+    #                 str((intervals[i]))
+    #                 + "}" 
+    #                 for i in range(1, len(intervals))]
+    # #print(intr_labels)
     
     return (group_labels, intervals)
 
@@ -134,6 +130,7 @@ def GenerateAttributes(groups_lbl: list) -> dict:
 
 def CentralityColorMap(Graph: nx.classes.graph.Graph,
                        intervals: list,
+                       param: float,
                        pos,
                        xsz: int,
                        ysz: int,
@@ -149,7 +146,7 @@ def CentralityColorMap(Graph: nx.classes.graph.Graph,
     fig = plt.figure(figsize=(ysz,xsz))
     ec  = nx.draw_networkx_edges(Graph,
                                  pos,
-                                 alpha=0.2)
+                                 alpha=0.4)
     nc  = nx.draw_networkx_nodes(Graph,
                                  pos,
                                  nodelist=nodes,
@@ -162,7 +159,9 @@ def CentralityColorMap(Graph: nx.classes.graph.Graph,
     #                               font_color='k')
     
     cbar = plt.colorbar(nc, ticks=range(0,len(intervals)))
-    cbar.ax.set_yticklabels(list(map(str, list(map(lambda x: round(x, 3), intervals)))))  # vertically oriented colorbar
+    cbar.ax.set_yticklabels(list(map(str, list(map(lambda x: round(x, 3), intervals)))))
+    cbar.set_label('Colormap')
+    plt.title(f"Centrality measure of the node as function of color with parameter {round(param, 4)}")
     plt.axis('off')
     if filename != "":
         plt.savefig(filename, format="jpg", bbox_inches="tight")
@@ -189,7 +188,7 @@ def VisualizeNodeCentrality(centrality_vector: np.ndarray,
         legend_list.append('Node ' + str(i))
         
     matplotlib.rcParams['legend.fontsize'] = 9
-    fig.legend(legend_list,loc=5)
+    fig.legend(legend_list, loc=5)
     plt.grid()
     
     if filename != "":
@@ -199,8 +198,10 @@ def VisualizeNodeCentrality(centrality_vector: np.ndarray,
     
 def DisplayCentralitiesInGraph(centrality_matrix: np.ndarray,
                                Graph: nx.classes.graph.Graph,
+                               grid: np.ndarray,
                                xsz: int=15,
-                               ysz: int=15) -> None:
+                               ysz: int=15,
+                               filename="") -> None:
     
     pos = nx.spring_layout(Graph)
     for i in range(centrality_matrix.shape[1]):
@@ -210,4 +211,9 @@ def DisplayCentralitiesInGraph(centrality_matrix: np.ndarray,
         test_attribute    = GenerateAttributes(glbl)
         
         nx.set_node_attributes(Graph, test_attribute)
-        CentralityColorMap(Graph, ints, pos, xsz, ysz)
+        
+        if filename != "":
+            fln = filename + str(i) + ".jpg"
+            
+        CentralityColorMap(Graph, ints, grid[i], pos, xsz, ysz, fln)
+        fln = ""
