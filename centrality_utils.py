@@ -21,14 +21,14 @@ def Reshape(vector: np.ndarray) -> np.ndarray:
 
 def KatzGrid(spectral_rad: float,
              grid_points: int=9) -> np.ndarray:
-    
     alphas = np.linspace(0, 1/spectral_rad, num=grid_points)
     alphas = alphas[1:len(alphas)-1]
+    #alphas = alphas[1:len(alphas)]
     
     return alphas
 
 def TGrid(grid_points: int=9) -> np.ndarray:
-    ts = np.linspace(0, 1, num=grid_points)
+    ts = np.linspace(0.5, 1.5, num=grid_points)
     ts = ts[1:len(ts)-1]
     
     return ts
@@ -37,7 +37,7 @@ def SpectralRadius(A) -> float:
     W, V  = scipy.sparse.linalg.eigs(A)
     eigen = max(abs(W))
     lambd = float(eigen)
-    
+    print(lambd)
     return lambd
 
 def DeformedGraphLaplacian(A,
@@ -71,12 +71,14 @@ def KatzCentralityV2(A, Graph: nx.classes.graph.Graph) -> tuple((np.ndarray, np.
     e                   = np.ones((N, 1))
     
     katz_centralities   = np.zeros((N, len(alphas)))
+    condition_numbers   = np.zeros(len(alphas))
 
     for i, alpha in enumerate(alphas):
         centr                   = np.linalg.inv(I - alpha*A) * e
         katz_centralities[:, i] = Reshape(centr)
+        condition_numbers[i]    = np.linalg.cond(I - alpha*A)
     
-    return (katz_centralities, alphas)
+    return (katz_centralities, alphas, condition_numbers)
 
 def NBTCentrality(A) -> tuple((np.ndarray, np.ndarray)):
     N                          = A.shape[0]
@@ -153,10 +155,10 @@ def CentralityColorMap(Graph: nx.classes.graph.Graph,
                                  node_color=colors, 
                                  node_size=15,
                                  cmap=plt.cm.jet)
-    # lb  = nx.draw_networkx_labels(Graph,
-    #                               pos,
-    #                               font_size=9,
-    #                               font_color='k')
+    lb  = nx.draw_networkx_labels(Graph,
+                                  pos,
+                                  font_size=9,
+                                  font_color='k')
     
     cbar = plt.colorbar(nc, ticks=range(0,len(intervals)))
     cbar.ax.set_yticklabels(list(map(str, list(map(lambda x: round(x, 3), intervals)))))
@@ -166,6 +168,16 @@ def CentralityColorMap(Graph: nx.classes.graph.Graph,
     if filename != "":
         plt.savefig(filename, format="jpg", bbox_inches="tight")
     plt.show()
+    
+def ShowConditionNumber(grid: np.ndarray,
+                        condition_num: np.ndarray,
+                        filename: str) -> None:
+    fig = plt.figure(figsize=(5,5))
+    plt.plot(grid, condition_num)
+    plt.title('Condition number of (I - aA)')
+    plt.xlabel('a')
+    plt.ylabel('K(I - aA)')
+    plt.savefig(filename, format="jpg", bbox_inches="tight")
 
 def VisualizeNodeCentrality(centrality_vector: np.ndarray,
                             grid: np.ndarray,
@@ -188,7 +200,7 @@ def VisualizeNodeCentrality(centrality_vector: np.ndarray,
         legend_list.append('Node ' + str(i))
         
     matplotlib.rcParams['legend.fontsize'] = 9
-    fig.legend(legend_list, loc=5)
+    fig.legend(legend_list, loc=9)
     plt.grid()
     
     if filename != "":
