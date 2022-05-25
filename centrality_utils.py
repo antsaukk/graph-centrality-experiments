@@ -28,7 +28,7 @@ def KatzGrid(spectral_rad: float,
     return alphas
 
 def TGrid(grid_points: int=9) -> np.ndarray:
-    ts = np.linspace(0.5, 1.5, num=grid_points)
+    ts = np.linspace(0.4, 1, num=grid_points)
     ts = ts[1:len(ts)-1]
     
     return ts
@@ -37,7 +37,7 @@ def SpectralRadius(A) -> float:
     W, V  = scipy.sparse.linalg.eigs(A)
     eigen = max(abs(W))
     lambd = float(eigen)
-    print(lambd)
+
     return lambd
 
 def DeformedGraphLaplacian(A,
@@ -86,6 +86,7 @@ def NBTCentrality(A) -> tuple((np.ndarray, np.ndarray)):
     ts                         = TGrid()
     
     nbtw_centralities          = np.zeros((N, len(ts)))
+    condition_numbers          = np.zeros(len(ts))
     
     I                          = np.eye(N)
     e                          = np.ones((N, 1))
@@ -99,8 +100,9 @@ def NBTCentrality(A) -> tuple((np.ndarray, np.ndarray)):
         
         centr_nbt               = np.linalg.inv(Mt) * e * (1 - t**2)
         nbtw_centralities[:, i] = Reshape(centr_nbt)
+        condition_numbers[i]    = np.linalg.cond(Mt)
         
-    return (nbtw_centralities, ts)
+    return (nbtw_centralities, ts, condition_numbers)
 
 def GenerateGroups(range_to_group: np.ndarray) -> tuple((list, np.ndarray)):
     lb           = min(range_to_group)
@@ -171,10 +173,11 @@ def CentralityColorMap(Graph: nx.classes.graph.Graph,
     
 def ShowConditionNumber(grid: np.ndarray,
                         condition_num: np.ndarray,
+                        title: str,
                         filename: str) -> None:
     fig = plt.figure(figsize=(5,5))
     plt.plot(grid, condition_num)
-    plt.title('Condition number of (I - aA)')
+    plt.title(f"Condition number of {title}")
     plt.xlabel('a')
     plt.ylabel('K(I - aA)')
     plt.savefig(filename, format="jpg", bbox_inches="tight")
@@ -200,7 +203,7 @@ def VisualizeNodeCentrality(centrality_vector: np.ndarray,
         legend_list.append('Node ' + str(i))
         
     matplotlib.rcParams['legend.fontsize'] = 9
-    fig.legend(legend_list, loc=9)
+    fig.legend(legend_list, loc=5)
     plt.grid()
     
     if filename != "":
