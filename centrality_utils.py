@@ -23,19 +23,28 @@ def KatzGrid(spectral_rad: float,
              grid_points: int=9) -> np.ndarray:
     alphas = np.linspace(0, 1/spectral_rad, num=grid_points)
     alphas = alphas[1:len(alphas)-1]
-    #alphas = alphas[1:len(alphas)]
     
     return alphas
 
-def TGrid(grid_points: int=9) -> np.ndarray:
-    ts = np.linspace(0.4, 1, num=grid_points)
+def TGrid(minEigOfMt: float,
+          grid_points: int=9) -> np.ndarray:
+    ts = np.linspace(0, minEigOfMt, num=grid_points)
+    #ts = np.linspace(0, spectral_rad, num=grid_points)
     ts = ts[1:len(ts)-1]
+    #ts = ts[1:len(ts)]
     
     return ts
 
 def SpectralRadius(A) -> float:
     W, V  = scipy.sparse.linalg.eigs(A)
     eigen = max(abs(W))
+    lambd = float(eigen)
+
+    return lambd
+
+def SmallestSpectralRadius(A) -> float:
+    W, V  = scipy.sparse.linalg.eigs(A)
+    eigen = min(abs(W))
     lambd = float(eigen)
 
     return lambd
@@ -83,7 +92,10 @@ def KatzCentralityV2(A, Graph: nx.classes.graph.Graph) -> tuple((np.ndarray, np.
 def NBTCentrality(A) -> tuple((np.ndarray, np.ndarray)):
     N                          = A.shape[0]
     
-    ts                         = TGrid()
+    #largest_eigen_value        = SpectralRadius(A)
+    #smallest_eigen_value        = SmallestSpectralRadius(A)
+    
+    ts                         = TGrid(0.0334) # 0.3214 for GD; 0.0334 for Myc
     
     nbtw_centralities          = np.zeros((N, len(ts)))
     condition_numbers          = np.zeros(len(ts))
@@ -150,7 +162,7 @@ def CentralityColorMap(Graph: nx.classes.graph.Graph,
     fig = plt.figure(figsize=(ysz,xsz))
     ec  = nx.draw_networkx_edges(Graph,
                                  pos,
-                                 alpha=0.4)
+                                 alpha=0.2)
     nc  = nx.draw_networkx_nodes(Graph,
                                  pos,
                                  nodelist=nodes,
@@ -179,7 +191,7 @@ def ShowConditionNumber(grid: np.ndarray,
     plt.plot(grid, condition_num)
     plt.title(f"Condition number of {title}")
     plt.xlabel('a')
-    plt.ylabel('K(I - aA)')
+    plt.ylabel(f"K({title})")
     plt.savefig(filename, format="jpg", bbox_inches="tight")
 
 def VisualizeNodeCentrality(centrality_vector: np.ndarray,
@@ -202,7 +214,7 @@ def VisualizeNodeCentrality(centrality_vector: np.ndarray,
         lines = plt.plot(grid, centrality_vector[i, :], linewidth=0.5)
         legend_list.append('Node ' + str(i))
         
-    matplotlib.rcParams['legend.fontsize'] = 9
+    matplotlib.rcParams['legend.fontsize'] = 5
     fig.legend(legend_list, loc=5)
     plt.grid()
     
@@ -218,6 +230,7 @@ def DisplayCentralitiesInGraph(centrality_matrix: np.ndarray,
                                ysz: int=15,
                                filename="") -> None:
     
+    fln = ""
     pos = nx.spring_layout(Graph)
     for i in range(centrality_matrix.shape[1]):
         centrality_vector = centrality_matrix[:, i]
